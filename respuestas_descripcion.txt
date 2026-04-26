@@ -1,0 +1,79 @@
+Mateo Iván Patejim - mpatejim@udesa.edu.ar
+
+=== FASE 1 ===
+La fase compara el input del usuario con una string hardcodeada usando strings_not_equal().
+Si no coinciden, explota. El string está almacenado en 0x4c9a58 y se puede obtener de la siguiente manera.
+gdb ./bomb
+x/s 0x4c9a58
+
+Solución: "Por la libertad, asi como por la honra, se puede y se debe aventurar la vida."
+
+=== FASE 2 ===
+La fase lee dos números con strtol (base 10) separados por espacio.
+Condiciones que deben cumplirse:
+  1. Ninguno puede ser 0 (producto != 0)
+  2. Su suma debe ser 0xC016 = 49174
+  3. Función "misterio" hace XOR de los dos números (en 32 bits) y salta con "js"
+     si el bit de signo está seteado, es decir, necesita que uno sea negativo y otro positivo.
+
+Solución posible: "49180 -6" (suma = 49174, producto != 0, XOR tiene bit31=1)
+
+=== FASE 3 ===
+La fase llama a sscanf con formato 0x4c7099 -> "%s %d", osea, busca leer un string y un numero
+Llama a readlines() para cargar palabras.txt en un array, luego llama a cuenta().
+cuenta() es una búsqueda binaria recursiva sobre el array de palabras que acumula
+los valores ASCII del primer carácter de cada palabra visitada en el camino de búsqueda.
+El resultado de cuenta() debe ser igual al número ingresado y estar entre 401 y 799.
+
+
+Solución posible: "acoquinar 491" 
+
+=== FASE 4 ===
+La fase verifica que el input tenga exactamente 6 caracteres.
+Itera sobre cada carácter, toma sus 4 bits menos significativos,
+y lo usa como índice en un array de 16 enteros (array.0 en 0x4cde40).
+(gdb) x/16dw 0x4cde40
+0x4cde40 <array.0>:     2       13      7       14  
+0x4cde50 <array.0+16>:  5       10      6       15
+0x4cde60 <array.0+32>:  1       12      3       4
+0x4cde70 <array.0+48>:  11      8       16      9
+La suma de los 6 valores indexados debe ser 0x2f = 47.
+
+'M' → 0x4D & 0xF = 0xD = arr[0xD] = 8
+'a' → 0x61 & 0xF = 0x1 = arr[0x1] = 13
+'t' → 0x74 & 0xF = 0x4 = arr[0x4] = 5
+'e' → 0x65 & 0xF = 0x5 = arr[0x5] = 10
+'o' → 0x6F & 0xF = 0xF = arr[0xF] = 9
+'P' → 0x50 & 0xF = 0x0 = arr[0x0] = 2
+8 + 13 + 5 + 10 + 9 + 2 = 47
+
+Solución posible: "MateoP" 
+
+=== FASE SECRETA ===
+La fase secreta se activa desde phase_defused() después de completar las 4 fases.
+phase_defused() relee el input de la fase 3 con formato "%s %d %s" buscando una tercera
+palabra. Si esa palabra coincide con "abrete_sesamo" (hardcodeada en 0x4c714f), activa
+la secret_phase. Por eso el input de fase 3 debe ser "acoquinar 491 abrete_sesamo".
+ 
+La secret_phase necesita de un numero entre 1 y 1001 y lo busca en un árbol binario con fun7().
+fun7() recorre el árbol así:
+  - Si el nodo es NULL: retorna -1 -- mov    eax,0xffffffff
+  - Si nodo->valor == n: retorna 0  -- mov    eax,0x0 
+  - Si nodo->valor > n: va a la izquierda y retorna 2 * fun7(left, n) -- add eax,eax
+  - Si nodo->valor < n: va a la derecha y retorna 2 * fun7(right, n) + 1 -- lea [rax+rax*1+0x1]
+ 
+El resultado de fun7() debe ser exactamente 4.
+ 
+El árbol reconstruido es:
+                36
+            /       \
+           8         50
+          / \        /  \
+         6   22     45  107
+        / \ / \    / \ /  \
+       1  7 20 35 40 47 99 1001
+ 
+Para que fun7() retorne 4 = 2*(2*(2*0+1)) se necesita el camino izquierda->izquierda->igual,
+es decir un nodo que esté dos niveles a la izquierda de la raíz y sea encontrado exactamente.
+ 
+Solución: "7"
